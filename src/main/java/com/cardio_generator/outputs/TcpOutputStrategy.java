@@ -33,9 +33,9 @@ public class TcpOutputStrategy implements OutputStrategy {
     }
 
     @Override
-    public void output(int patientId, long timestamp, String label, String data) {
+    public void output(int patientId, long timeStamp, String label, String data) {
         if (out != null) {
-            String message = String.format("%d,%d,%s,%s", patientId, timestamp, label, data);
+            String message = String.format("%d,%d,%s,%s", patientId, timeStamp, label, data);
             out.println(message);
         }
     }
