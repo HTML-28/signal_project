@@ -32,7 +32,7 @@ public class FileOutputStrategy implements OutputStrategy {
             return;
         }
 
-        // changed FilePath to filePath
+        // changed FilePath to filePath :)
         // Set the FilePath variable
         String filePath = FILE_MAP.computeIfAbsent(label, k -> Paths.get(baseDirectory, label + ".txt").toString());
 
