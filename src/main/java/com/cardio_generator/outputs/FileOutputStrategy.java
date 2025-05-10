@@ -8,24 +8,36 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.ConcurrentHashMap;
 
 // Renamed class from fileOutputStrategy to FileOutputStrategy due to UpperCamelCase.
-// Added class Javadoc for public class .
+/**
+ *patient data is sent to separate files according data type.
+ */
 public class FileOutputStrategy implements OutputStrategy {
 
     // Renamed BaseDirectory to baseDirectory to due to lowerCamelCase .
     
-    // Added Javadoc for field per Section 7.3.
     private String baseDirectory;
 
     // CHnaged from file_map to fileMap because lowerCamelCase .
     
-    // Added Javadoc for public field per Section 7.3.
     public final ConcurrentHashMap<String, String> fileMap = new ConcurrentHashMap<>();
 
+    /**
+     * Applies the output file directory
+     *
+     * @param baseDirectory file directory
+     */
     public FileOutputStrategy(String baseDirectory) {
         this.baseDirectory = baseDirectory;
     }
 
-    
+    /**
+     * According to the label data is sent to the correct file.
+     *
+     * @param patientId  patient's ID
+     * @param timestamp data generation noted time
+     * @param label label for data type
+     * @param data value of the data
+     */
     @Override
     public void output(int patientId, long timestamp, String label, String data) {
         try {
