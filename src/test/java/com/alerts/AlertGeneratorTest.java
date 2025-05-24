@@ -1,110 +1,198 @@
 package com.alerts;
 
 import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.util.List;
 
 import com.data_management.DataStorage;
 import com.data_management.Patient;
+import com.data_management.PatientRecord;
 
+/**
+ * Unit tests for AlertGenerator.
+ * Each test simulates a patient scenario and checks alert logic.
+ */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class AlertGeneratorTest {
 
-    private AlertGenerator generator;
-    private DataStorage storage;
-    private Patient testPatient;
+    private AlertGenerator alertGenerator;
+    private DataStorage dataStorage;
+    private Patient patient;
+    private static final int PATIENT_ID = 123;
 
-    /**
-     * Sets up a new AlertGenerator and Patient before each test.
-     */
     @BeforeEach
-    public void init() {
-        storage = new DataStorage();
-        generator = new AlertGenerator(storage);
-        testPatient = new Patient(123);
+    void init() {
+        dataStorage = new DataStorage();
+        alertGenerator = new AlertGenerator(dataStorage);
+        patient = new Patient(PATIENT_ID);
     }
 
-    /**
-     * Test that a high systolic blood pressure triggers the correct alert.
-     */
-    @Test
-    public void triggersHighSystolicBPAlert() {
-        double highSystolic = 185.0;
-        testPatient.addRecord(highSystolic, "SystolicBP", System.currentTimeMillis());
+    // --- Helper Methods ---
 
-        generator.evaluateData(testPatient);
-
-        List<Alert> active = generator.getActiveAlertsForPatient(123);
-        assertAll(
-            () -> assertFalse(active.isEmpty(), "There should be at least one active alert"),
-            () -> assertTrue(active.stream().anyMatch(a -> a.getType() == AlertType.HIGH_SYSTOLIC_BP),
-                "A HIGH_SYSTOLIC_BP alert should be present")
-        );
+    /** Adds a record to the patient and evaluates data. */
+    private List<Alert> addAndEval(double value, String type) {
+        patient.addRecord(value, type, System.currentTimeMillis());
+        alertGenerator.evaluateData(patient);
+        return alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
     }
 
-    /**
-     * Test that low oxygen triggers an alert, and a normal value can resolve it.
-     */
-    @Test
-    public void detectsLowOxygenAndResolves() {
-        testPatient.addRecord(90.0, "OxygenSaturation", System.currentTimeMillis());
-        generator.evaluateData(testPatient);
-
-        List<Alert> alertsAfterLow = generator.getActiveAlertsForPatient(123);
-        assertTrue(alertsAfterLow.size() > 0, "Low oxygen should trigger an alert");
-
-        testPatient.addRecord(95.0, "OxygenSaturation", System.currentTimeMillis() + 1000);
-        generator.evaluateData(testPatient);
-
-        List<Alert> alertsAfterNormal = generator.getActiveAlertsForPatient(123);
-        // No assertion for resolution, but could check for empty or absence of LOW_OXYGEN_SATURATION
+    /** Returns true if an alert of the given type exists in the list. */
+    private boolean containsAlert(List<Alert> alerts, AlertType type) {
+        return alerts.stream().anyMatch(a -> a.getType() == type);
     }
 
-    /**
-     * Test that insufficient ECG data does not trigger an alert.
-     */
+    /** Returns the first alert of the given type, or null. */
+    private Alert getAlert(List<Alert> alerts, AlertType type) {
+        return alerts.stream().filter(a -> a.getType() == type).findFirst().orElse(null);
+    }
+
+    // --- Test Cases ---
+
     @Test
-    public void doesNotAlertOnInsufficientECGData() {
+    @DisplayName("High systolic BP triggers CRITICAL alert")
+    void highSystolicBP() {
+        List<Alert> alerts = addAndEval(185.0, "SystolicBP");
+        Alert alert = getAlert(alerts, AlertType.HIGH_SYSTOLIC_BP);
+        assertNotNull(alert, "Expected HIGH_SYSTOLIC_BP alert");
+        assertEquals(AlertSeverity.CRITICAL, alert.getSeverity());
+    }
+
+    @Test
+    @DisplayName("Low systolic BP triggers HIGH alert")
+    void lowSystolicBP() {
+        List<Alert> alerts = addAndEval(85.0, "SystolicBP");
+        Alert alert = getAlert(alerts, AlertType.LOW_SYSTOLIC_BP);
+        assertNotNull(alert, "Expected LOW_SYSTOLIC_BP alert");
+        assertEquals(AlertSeverity.HIGH, alert.getSeverity());
+    }
+
+    @Test
+    @DisplayName("High diastolic BP triggers alert")
+    void highDiastolicBP() {
+        List<Alert> alerts = addAndEval(130.0, "DiastolicBP");
+        assertTrue(containsAlert(alerts, AlertType.HIGH_DIASTOLIC_BP));
+    }
+
+    @Test
+    @DisplayName("Low diastolic BP triggers alert")
+    void lowDiastolicBP() {
+        List<Alert> alerts = addAndEval(55.0, "DiastolicBP");
+        assertTrue(containsAlert(alerts, AlertType.LOW_DIASTOLIC_BP));
+    }
+
+    @Test
+    @DisplayName("Increasing BP trend triggers trend alert")
+    void increasingBPTrend() {
         long now = System.currentTimeMillis();
-        for (int i = 0; i < 5; i++) {
-            testPatient.addRecord(70.0, "ECG", now + i * 100);
+        patient.addRecord(140.0, "SystolicBP", now - 3000);
+        patient.addRecord(155.0, "SystolicBP", now - 2000);
+        patient.addRecord(170.0, "SystolicBP", now - 1000);
+        alertGenerator.evaluateData(patient);
+        List<Alert> alerts = alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
+        assertTrue(containsAlert(alerts, AlertType.BP_INCREASING_TREND));
+    }
+
+    @Test
+    @DisplayName("Decreasing BP trend triggers trend alert")
+    void decreasingBPTrend() {
+        long now = System.currentTimeMillis();
+        patient.addRecord(170.0, "SystolicBP", now - 3000);
+        patient.addRecord(155.0, "SystolicBP", now - 2000);
+        patient.addRecord(140.0, "SystolicBP", now - 1000);
+        alertGenerator.evaluateData(patient);
+        List<Alert> alerts = alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
+        assertTrue(containsAlert(alerts, AlertType.BP_DECREASING_TREND));
+    }
+
+    @Test
+    @DisplayName("Normal BP does not trigger alerts")
+    void normalBP() {
+        List<Alert> alerts = addAndEval(120.0, "SystolicBP");
+        assertFalse(containsAlert(alerts, AlertType.HIGH_SYSTOLIC_BP));
+        assertFalse(containsAlert(alerts, AlertType.LOW_SYSTOLIC_BP));
+    }
+
+    @Test
+    @DisplayName("Low oxygen saturation triggers HIGH alert")
+    void lowOxygen() {
+        List<Alert> alerts = addAndEval(90.0, "OxygenSaturation");
+        Alert alert = getAlert(alerts, AlertType.LOW_OXYGEN_SATURATION);
+        assertNotNull(alert, "Expected LOW_OXYGEN_SATURATION alert");
+        assertEquals(AlertSeverity.HIGH, alert.getSeverity());
+    }
+
+    @Test
+    @DisplayName("Rapid oxygen drop triggers alert")
+    void rapidOxygenDrop() {
+        long now = System.currentTimeMillis();
+        patient.addRecord(98.0, "OxygenSaturation", now - 500000);
+        patient.addRecord(92.0, "OxygenSaturation", now);
+        alertGenerator.evaluateData(patient);
+        List<Alert> alerts = alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
+        assertTrue(containsAlert(alerts, AlertType.RAPID_OXYGEN_DROP));
+    }
+
+    @Test
+    @DisplayName("Combined hypotensive hypoxemia triggers CRITICAL alert")
+    void hypotensiveHypoxemia() {
+        long now = System.currentTimeMillis();
+        patient.addRecord(85.0, "SystolicBP", now);
+        patient.addRecord(91.0, "OxygenSaturation", now);
+        alertGenerator.evaluateData(patient);
+        List<Alert> alerts = alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
+        Alert alert = getAlert(alerts, AlertType.HYPOTENSIVE_HYPOXEMIA);
+        assertNotNull(alert, "Expected HYPOTENSIVE_HYPOXEMIA alert");
+        assertEquals(AlertSeverity.CRITICAL, alert.getSeverity());
+    }
+
+    @Test
+    @DisplayName("ECG abnormal peak triggers alert")
+    void ecgAbnormalPeak() {
+        long now = System.currentTimeMillis();
+        for (int i = 0; i < 19; i++) {
+            patient.addRecord(70.0 + (Math.random() * 2), "ECG", now - (20 - i) * 1000);
         }
-        generator.evaluateData(testPatient);
-
-        // No assertion, just ensures no exception and no alert for insufficient data
+        patient.addRecord(120.0, "ECG", now);
+        alertGenerator.evaluateData(patient);
+        List<Alert> alerts = alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
+        assertTrue(containsAlert(alerts, AlertType.ECG_ABNORMAL_PEAK));
     }
 
-    /**
-     * Test that a manual alert can be triggered and then resolved.
-     */
     @Test
-    public void manualAlertIsTriggeredAndResolved() {
-        testPatient.addRecord(1.0, "Alert", System.currentTimeMillis(), "triggered");
-        generator.evaluateData(testPatient);
-
-        List<Alert> afterTrigger = generator.getActiveAlertsForPatient(123);
-        assertEquals(1, afterTrigger.size(), "Manual alert should be triggered");
-
-        testPatient.addRecord(0.0, "Alert", System.currentTimeMillis() + 1000, "resolved");
-        generator.evaluateData(testPatient);
-
-        List<Alert> afterResolve = generator.getActiveAlertsForPatient(123);
-        assertEquals(0, afterResolve.size(), "Manual alert should be resolved");
+    @DisplayName("Manual trigger alert is detected")
+    void manualTrigger() {
+        patient.addRecord(1.0, "Alert", System.currentTimeMillis(), "triggered");
+        alertGenerator.evaluateData(patient);
+        List<Alert> alerts = alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
+        assertTrue(containsAlert(alerts, AlertType.MANUAL_TRIGGER));
     }
 
-    /**
-     * Test that multiple alert conditions (high BP and low oxygen) are detected simultaneously.
-     */
     @Test
-    public void multipleAlertsAreDetected() {
-        long baseTime = System.currentTimeMillis();
-        testPatient.addRecord(185.0, "SystolicBP", baseTime);
-        testPatient.addRecord(90.0, "OxygenSaturation", baseTime);
+    @DisplayName("Alert is resolved when condition normalizes")
+    void alertResolution() {
+        // Trigger alert
+        patient.addRecord(185.0, "SystolicBP", System.currentTimeMillis() - 1000);
+        alertGenerator.evaluateData(patient);
+        assertTrue(containsAlert(alertGenerator.getActiveAlertsForPatient(PATIENT_ID), AlertType.HIGH_SYSTOLIC_BP));
+        // Add normal reading to resolve
+        patient.addRecord(120.0, "SystolicBP", System.currentTimeMillis());
+        alertGenerator.evaluateData(patient);
+        assertFalse(containsAlert(alertGenerator.getActiveAlertsForPatient(PATIENT_ID), AlertType.HIGH_SYSTOLIC_BP));
+    }
 
-        generator.evaluateData(testPatient);
-
-        List<Alert> foundAlerts = generator.getActiveAlertsForPatient(123);
-        assertTrue(foundAlerts.size() >= 2, "Both high BP and low oxygen alerts should be present");
+    @Test
+    @DisplayName("Get all active alerts for multiple patients")
+    void getAllActiveAlerts() {
+        Patient patient2 = new Patient(456);
+        patient.addRecord(185.0, "SystolicBP", System.currentTimeMillis());
+        alertGenerator.evaluateData(patient);
+        patient2.addRecord(91.0, "OxygenSaturation", System.currentTimeMillis());
+        alertGenerator.evaluateData(patient2);
+        List<Alert> allAlerts = alertGenerator.getAllActiveAlerts();
+        boolean found1 = allAlerts.stream().anyMatch(a -> a.getPatientId() == PATIENT_ID);
+        boolean found2 = allAlerts.stream().anyMatch(a -> a.getPatientId() == 456);
+        assertTrue(found1, "Alert for patient 1 expected");
+        assertTrue(found2, "Alert for patient 2 expected");
     }
 }
