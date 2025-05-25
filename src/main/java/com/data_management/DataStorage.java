@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.alerts.AlertGenerator;
 
 /**
@@ -35,8 +37,8 @@ public class DataStorage {
      * DataStorage constructor is private to prevent instantiation outside this class.
      */
     private DataStorage() {
-        this.patientMap = new HashMap<>();
-    }
+        this.patientMap = new ConcurrentHashMap<>();
+    } // thread-safe map to store patient data
     
 
 

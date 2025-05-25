@@ -1,6 +1,7 @@
 package com.data_management;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 
 public interface DataReader {
     /**
@@ -10,4 +11,12 @@ public interface DataReader {
      * @throws IOException if there is an error reading the data
      */
     void readData(DataStorage dataStorage) throws IOException;
+
+
+
+    //continuous data input begins
+    void start(DataStorage storage) throws IOException;
+
+    // stops the input loop
+    void stop() throws IOException;
 }

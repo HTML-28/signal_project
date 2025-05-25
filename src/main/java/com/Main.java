@@ -1,7 +1,12 @@
 package com;
 
+import java.net.URI;
+import java.util.Scanner;
+
 import com.cardio_generator.HealthDataSimulator;
 import com.data_management.DataStorage;
+import com.cardio_generator.outputs.WebSocketOutputStrategy;
+import com.data_management.WebSocketClientReader;
 
 /**
  * Main entry point for the Signal Project application.
@@ -18,6 +23,7 @@ public class Main {
      * @throws Exception if an error occurs during execution
      */
     public static void main(String[] args) throws Exception {
+       /*  
         if (args.length > 0 && args[0].equals("DataStorage")) {
             System.out.println("Starting DataStorage component...");
             // Pass all arguments except the first to DataStorage
@@ -34,6 +40,28 @@ public class Main {
             }
             HealthDataSimulator.main(simulatorArgs);
         }
+
+        */
+        URI serverUri = new URI("ws://localhost:8887");
+        WebSocketOutputStrategy server = new WebSocketOutputStrategy(8887);
+        WebSocketClientReader client = new WebSocketClientReader(serverUri);
+        client.connect(); // Open the WebSocket connection
+
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("type exit to get out:");
+
+        long currentTime = System.currentTimeMillis();
+        server.output(4234, currentTime, "BP", "653");
+
+        while (true) {
+            String input = scanner.nextLine();
+            if ("exit".equalsIgnoreCase(input)) {
+                break;
+            }
+            client.send(input);
+        }
+
+        client.close();
     }
 
     /**

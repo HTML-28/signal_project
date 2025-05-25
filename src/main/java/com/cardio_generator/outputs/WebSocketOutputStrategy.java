@@ -18,6 +18,12 @@ public class WebSocketOutputStrategy implements OutputStrategy {
     @Override
     public void output(int patientId, long timestamp, String label, String data) {
         String message = String.format("%d,%d,%s,%s", patientId, timestamp, label, data);
+        // Validate inputs
+        assert patientId >= 0 : "Patient ID must be non-negative";
+        assert timestamp >= 0 : "Timestamp must be non-negative";
+        assert label != null && !label.isEmpty() : "Label must not be null or empty";
+        assert data != null && !data.isEmpty() : "Data must not be null or empty";
+        
         // Broadcast the message to all connected clients
         for (WebSocket conn : server.getConnections()) {
             conn.send(message);
