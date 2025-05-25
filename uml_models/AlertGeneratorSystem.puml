@@ -1,0 +1,62 @@
+@startuml AlertGenerationSystem
+
+'Class section
+
+class PatientIdentifier {
+  -patientName: String
+  -patientId: int
+  +getPatientName(patientId: int): String
+}
+
+class AlertGenerator {
+  -thresholdMap: Map<Integer, Threshold>
+  +evaluateData(patientId: int, data: PatientData): void
+}
+
+class AlertManager {
+  -alerts: List<Alert>
+  +dispatchAlert(alert: Alert): void
+}
+
+class Threshold {
+    -minValue: double
+  -label: String
+  -maxValue: double
+  +getMaxValue(): double
+  +getLabel(): String
+  +getMinValue(): double
+}
+
+
+
+class Alert {
+  -patientId: int
+  -condition: String
+  -timestamp: long
+  +getPatientId(): int
+  +getCondition(): String
+  +getTimestamp(): long
+}
+
+class PatientData {
+  -patientId: int
+  -timestamp: long
+  -value: double
+  -label: String
+  +getPatientId(): int
+  +getTimestamp(): long
+  +getLabel(): String
+  +getValue(): double
+}
+
+
+
+
+' Relations
+AlertManager "1" -- "*" Alert : dispatches
+AlertGenerator "1" -- "*" Threshold : uses
+AlertGenerator "1" -- "*" Alert : creates
+Alert "1" -- "1" PatientIdentifier : includes
+AlertGenerator "1" -- "*" PatientData : receives
+
+@enduml

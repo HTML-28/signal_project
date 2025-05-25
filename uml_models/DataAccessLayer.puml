@@ -1,0 +1,46 @@
+@startuml DataAccessLayer
+
+' Classes
+interface DataListener {
+  +stopListening(): void  
+  +startListening(): void
+ 
+}
+
+class WebSocketDataListener {
+  -port: int
+  +stopListening(): void
+  +startListening(): void
+}
+
+class DataSourceAdapter {
+  +sendToStorage(data: PatientData): void
+}
+
+class TCPDataListener {
+  -port: int
+  +stopListening(): void
+  +startListening(): void
+}
+
+class FileDataListener {
+  -filePath: String
+  +startListening(): void
+  +stopListening(): void
+}
+
+class DataParser {
+  +parse(rawData: String): PatientData
+}
+
+
+
+' Relationships
+DataListener "1" -- "1" DataParser : uses
+WebSocketDataListener .|> DataListener : implements
+TCPDataListener .|> DataListener : implements
+FileDataListener .|> DataListener : implements
+DataListener "1" -- "1" DataSourceAdapter : sends to
+
+
+@enduml

@@ -1,0 +1,46 @@
+@startuml DataStorageSystem
+
+' Classes
+interface DataStorage {
+  +storeData(data: PatientData): void
+  +retrieveData(patientId: int, startTime: long, endTime: long): List<PatientData>
+  +deleteOldData(olderThan: long): void
+}
+
+class PatientData {
+  -timestamp: long
+  -label: String
+  -patientId: int
+  -version: int
+  -value: double
+  +getPatientId(): int
+  +getTimestamp(): long
+  +getValue(): double
+ +getVersion(): int
+  +getLabel(): String
+}
+
+class FileDataStorage {
+  -storagePath: String
+  +retrieveData(patientId: int, startTime: long, endTime: long): List<PatientData>
+  +storeData(data: PatientData): void
+  +deleteOldData(olderThan: long): void
+}
+
+class AccessController {
+  -allowedUsers: Set<String>
+  +hasAccess(userId: String): boolean
+}
+
+class DataRetriever {
+  +queryData(patientId: int, startTime: long, endTime: long): List<PatientData>
+}
+
+' Relationships
+DataRetriever "1" -- "1" AccessController : checks
+DataStorage "1" -- "*" PatientData : stores
+FileDataStorage .|> DataStorage : implements
+DataRetriever "1" -- "1" DataStorage : uses
+
+
+@enduml
