@@ -12,11 +12,4 @@ public interface DataReader {
      */
     void readData(DataStorage dataStorage) throws IOException;
 
-
-
-    //continuous data input begins
-    void start(DataStorage storage) throws IOException;
-
-    // stops the input loop
-    void stop() throws IOException;
 }

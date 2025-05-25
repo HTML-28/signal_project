@@ -90,13 +90,4 @@ public class FileDataReader implements DataReader {
         }
     }
     
-    @Override
-    public void start(DataStorage storage) throws IOException {
-
-    }
-
-    @Override
-    public void stop() throws IOException {
-
-    }
 }

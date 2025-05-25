@@ -1,114 +1,152 @@
 package data_management;
 
+import org.java_websocket.WebSocket;
+import org.java_websocket.handshake.ClientHandshake;
+import org.java_websocket.server.WebSocketServer;
+import org.junit.jupiter.api.*;
+
 import com.data_management.DataStorage;
-import com.data_management.PatientRecord;
+import com.data_management.Patient;
 import com.data_management.WebSocketClientReader;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import com.data_management.PatientRecord;
 
 import java.io.IOException;
-import java.net.URI;
-import java.util.List;
+import java.net.InetSocketAddress;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for WebSocketClientReader.
- * Verifies correct parsing and storage of incoming messages.
+ * Uses an embedded WebSocket server to simulate real-time data.
  */
-class WebSocketClientReaderTest {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class WebSocketClientReaderTest {
+
+    private static final int PORT = 8090;
+    private ServerDemo server;
+    private static final String SERVER_URI = "ws://localhost:" + PORT;    
+    private WebSocketClientReader client;
+    private DataStorage storage;
+
+    @BeforeAll
+    void launchServer() throws Exception {
+        server = new ServerDemo(PORT);
+        server.start();
+        Thread.sleep(500); // Ensure server is ready
+    }
+
+    @AfterAll
+    void shutdownServer() throws Exception {
+        server.stop(500);
+    }
+
+    @BeforeEach
+    void init() {
+        storage = storage.getInstance();
+        storage.reset();
+        client = new WebSocketClientReader(SERVER_URI);
+    }
+
+    @AfterEach
+    void cleanup() {
+        client.close();
+    }
+
+    @Test
+    void CalculationsTest() throws Exception {
+        client.readData(storage);
+        String msg = "1,3671627,BloodPressure,100";
+        server.broadcast(msg);
+        Thread.sleep(300);
+
+        Patient patient = findPatient(1);
+        assertNotNull(patient, "Patient should exist");
+        assertEquals(1, patient.getRecords(0, Long.MAX_VALUE).size());
+        PatientRecord rec = patient.getRecords(0, Long.MAX_VALUE).get(0);
+        assertEquals(100, rec.getMeasurementValue(), 0.001);
+        assertEquals("BloodPressure", rec.getRecordType());
+        assertEquals(3671627L, rec.getTimestamp());
+    }
+
+    @Test
+    void testConnection() throws IOException {
+        // Should connect to the test server
+        client.readData(storage);
+        assertTrue(client.isConnected(), "Client should connect to server");
+    }
+
+    @Test
+    void badMessageTest() throws Exception {
+        client.readData(storage);
+        server.broadcast("1,478172837,HeartRate,94");
+        server.broadcast("malformed_data");
+        Thread.sleep(200);
+
+        Patient patient = findPatient(1);
+        assertNotNull(patient, "Patient should be in the storage even after invalid message");
+        assertEquals(1, patient.getRecords(0, Long.MAX_VALUE).size());
+    }
+
+    @Test
+    void severalMessagesTest() throws Exception {
+        client.readData(storage);
+        server.broadcast("1,127378271,HeartRate,100");
+        server.broadcast("1,1621234567891,Temperature,45");
+        server.broadcast("2,1621234567892,BloodPressure,90");
+        Thread.sleep(600);
+
+        Patient p1 = findPatient(1);
+        Patient p2 = findPatient(2);
+        assertNotNull(p1, "Patient 1 should exist");
+        assertNotNull(p2, "Patient 2 should exist");
+        assertEquals(2, p1.getRecords(0, Long.MAX_VALUE).size());
+        assertEquals(1, p2.getRecords(0, Long.MAX_VALUE).size());
+    }
+
+
+
+    @Test
+    void ConnectionDownTest() {
+        // Attempt connection to invalid port
+        WebSocketClientReader badClient = new WebSocketClientReader("ws://localhost:1234", 2);
+        IOException ex = assertThrows(IOException.class, () -> badClient.readData(storage));
+        assertTrue(ex.getMessage().contains("Failed to connect"));
+    }
+
+    // Helper: Find patient by ID
+    private Patient findPatient(int id) {
+        return storage.getAllPatients().stream()
+                .filter(p -> p.getPatientId() == id)
+                .findFirst()
+                .orElse(null);
+    }
 
     /**
-     * Subclass to override connect() for testing purposes.
-     * Prevents actual network operations.
+     * Minimal WebSocket server for test purposes.
      */
-    private static class DummyReader extends WebSocketClientReader {
-        public DummyReader(URI uri) {
-            super(uri);
+    private static class ServerDemo extends WebSocketServer {
+        ServerDemo(int port) {
+            super(new InetSocketAddress(port));
         }
         @Override
-        public void connect() {
-            // Intentionally left blank to avoid real connections
+        public void onOpen(WebSocket conn, ClientHandshake handshake) {
+            // Connection established
         }
-    }
-
-    private DataStorage dataRepo;
-    private WebSocketClientReader wsReader;
-
-    /**
-     * Prepare a fresh DataStorage and a test WebSocketClientReader before each test.
-     */
-    @BeforeEach
-    void initialize() throws IOException {
-        dataRepo = DataStorage.getInstance();
-        dataRepo.reset(); // Clear any previous test data
-        wsReader = new DummyReader(URI.create("ws://localhost:9999"));
-        wsReader.start(dataRepo); // Assign storage to reader
-    }
-
-    /**
-     * Test that a well-formed message is parsed and stored as a single PatientRecord.
-     */
-    @Test
-    void validMessageShouldStoreRecord() {
-        wsReader.onMessage("5,1612345678000,HeartRate,72.0");
-
-        List<PatientRecord> found = dataRepo.getRecords(
-                5, 1612345678000L, 1612345678000L
-        );
-        assertEquals(1, found.size(), "Expected one record to be stored");
-
-        PatientRecord rec = found.get(0);
-        assertEquals(5, rec.getPatientId(), "Patient ID mismatch");
-        assertEquals("HeartRate", rec.getRecordType(), "Record type mismatch");
-        assertEquals(72.0, rec.getMeasurementValue(), 0.0001, "Measurement value mismatch");
-        assertEquals(1612345678000L, rec.getTimestamp(), "Timestamp mismatch");
-    }
-
-    /**
-     * Test that a message with a percent sign in the value is handled correctly.
-     */
-    @Test
-    void percentSignShouldBeStrippedFromValue() {
-        wsReader.onMessage("2,1000,Temp,37.5%");
-
-        List<PatientRecord> found = dataRepo.getRecords(2, 1000L, 1000L);
-        assertEquals(1, found.size(), "Percent value should still be stored");
-        assertEquals(37.5, found.get(0).getMeasurementValue(), 0.0001,
-                "Percent sign should be removed from value");
-    }
-
-    /**
-     * Test that a message with too few fields is ignored.
-     */
-    @Test
-    void incompleteMessageShouldBeIgnored() {
-        wsReader.onMessage("1,2000,OnlyThree");
-        List<PatientRecord> found = dataRepo.getRecords(1, 0, Long.MAX_VALUE);
-        assertTrue(found.isEmpty(), "Malformed message should not be stored");
-    }
-
-    /**
-     * Test that a message with an invalid number format is safely ignored.
-     */
-    @Test
-    void invalidNumberFormatShouldNotStore() {
-        wsReader.onMessage("x,2000,Label,50.0");
-        List<PatientRecord> found = dataRepo.getAllPatients().isEmpty()
-                ? List.of()
-                : dataRepo.getRecords(0, 0, Long.MAX_VALUE);
-        assertTrue(found.isEmpty(), "Parsing errors should not result in storage");
-    }
-
-    /**
-     * Test that multiple valid messages for the same patient accumulate records.
-     */
-    @Test
-    void multipleValidMessagesShouldAccumulate() {
-        wsReader.onMessage("3,500,ECG,10");
-        wsReader.onMessage("3,600,ECG,12");
-
-        List<PatientRecord> found = dataRepo.getRecords(3, 0, 1000);
-        assertEquals(2, found.size(), "Both records should be present");
+        @Override
+        public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+            // Connection closed
+        }
+        @Override
+        public void onMessage(WebSocket conn, String message) {
+            // No-op for test
+        }
+        @Override
+        public void onError(WebSocket conn, Exception ex) {
+            System.err.println("Server error: " + ex.getMessage());
+        }
+        @Override
+        public void onStart() {
+            // Server started
+        }
     }
 }

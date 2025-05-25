@@ -42,26 +42,7 @@ public class Main {
         }
 
         */
-        URI serverUri = new URI("ws://localhost:8887");
-        WebSocketOutputStrategy server = new WebSocketOutputStrategy(8887);
-        WebSocketClientReader client = new WebSocketClientReader(serverUri);
-        client.connect(); // Open the WebSocket connection
-
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("type exit to get out:");
-
-        long currentTime = System.currentTimeMillis();
-        server.output(4234, currentTime, "BP", "653");
-
-        while (true) {
-            String input = scanner.nextLine();
-            if ("exit".equalsIgnoreCase(input)) {
-                break;
-            }
-            client.send(input);
-        }
-
-        client.close();
+        
     }
 
     /**
