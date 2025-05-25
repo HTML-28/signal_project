@@ -40,12 +40,42 @@ public class HealthDataSimulator {
     /**Number randomizer*/
     private static final Random random = new Random();
 
+        
+    // Singleton instance
+    private static HealthDataSimulator instance;
+    
+
+    
+    /**
+     * Returns the instance of the singleton HealthDataSimulator.
+     *
+     * @return HealthDataSimulator singleton instance
+     */
+    public static synchronized HealthDataSimulator getInstance() {
+        if (instance == null) {
+            instance = new HealthDataSimulator();
+        }
+        return instance;
+    }
+
+    /**
+     * HealthDataSimulator constructor is private to prevent instantiation.
+     */
+    private HealthDataSimulator() {
+        // Private constructor to prevent instantiation outside this class
+        // This ensures that the class can only be accessed through the getInstance() method
+    }
+
     /**
      * Starts the simulator, processes arguments, and schedules data generation.
      * @param args config command-line arguments
      * @throws IOException in case the system can't create output directory
      */
     public static void main(String[] args) throws IOException {
+
+        // Get the singleton instance (optional here since we're using static methods)
+        HealthDataSimulator simulator = HealthDataSimulator.getInstance();
+        
 
         parseArguments(args);
 

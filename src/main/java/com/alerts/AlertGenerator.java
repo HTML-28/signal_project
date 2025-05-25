@@ -4,6 +4,7 @@ import com.data_management.DataStorage;
 import com.data_management.Patient;
 import java.util.*;
 import com.data_management.PatientRecord;
+import com.alerts.factory.AlertFactory;
 
 /**
  * The {@code AlertGenerator} class monitors patient data and generates alerts
@@ -12,6 +13,7 @@ import com.data_management.PatientRecord;
  */
 public class AlertGenerator {
     private final DataStorage dataStorage;
+    // Maps patientId -> (AlertType -> Alert) for currently active alerts
     private final Map<Integer, Map<AlertType, Alert>> activeAlerts = new HashMap<>();
     // Stores historical records for each patient and record type
     private final Map<Integer, Map<String, List<PatientRecord>>> patientRecordHistory = new HashMap<>();
@@ -51,14 +53,14 @@ public class AlertGenerator {
     public void evaluateData(Patient patient) {
         int patientId = patient.getPatientId();
 
-        // Initialize patient history and active alerts if needed
+        // Ensure patient history and active alerts are initialized
         patientRecordHistory.computeIfAbsent(patientId, k -> new HashMap<>());
         activeAlerts.computeIfAbsent(patientId, k -> new HashMap<>());
 
-        // Update patient history with new records
+        // Update patient history with new records from patient object
         updatePatientHistory(patient);
 
-        // Add recent records from storage to history
+        // Add recent records from storage to history (last 24 hours)
         long now = System.currentTimeMillis();
         long twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
         List<PatientRecord> recentStorageRecords = dataStorage.getRecords(patientId, twentyFourHoursAgo, now);
@@ -67,6 +69,7 @@ public class AlertGenerator {
                 String recordType = record.getRecordType();
                 patientRecordHistory.get(patientId).computeIfAbsent(recordType, k -> new ArrayList<>());
                 List<PatientRecord> typeHistory = patientRecordHistory.get(patientId).get(recordType);
+                // Avoid duplicate records by timestamp
                 boolean exists = typeHistory.stream().anyMatch(r -> r.getTimestamp() == record.getTimestamp());
                 if (!exists) {
                     typeHistory.add(record);
@@ -78,14 +81,14 @@ public class AlertGenerator {
             }
         }
 
-        // Check all alert types
+        // Check all alert types for this patient
         checkBloodPressureAlerts(patientId);
         checkOxygenSaturationAlerts(patientId);
         checkCombinedAlerts(patientId);
         checkECGAlerts(patientId);
         checkManuallyTriggeredAlerts(patientId);
 
-        // Print summary of active alerts
+        // Print summary of active alerts for this patient
         Map<AlertType, Alert> patientAlerts = activeAlerts.get(patientId);
         if (patientAlerts != null && !patientAlerts.isEmpty()) {
             System.out.println("Patient #" + patientId + " has " + patientAlerts.size() +
@@ -94,7 +97,7 @@ public class AlertGenerator {
     }
 
     /**
-     * Updates the patient's record history with new data.
+     * Updates the patient's record history with new data from the Patient object.
      *
      * @param patient the patient whose history to update
      */
@@ -109,12 +112,12 @@ public class AlertGenerator {
                 patientRecordHistory.get(patientId).computeIfAbsent(recordType, k -> new ArrayList<>());
                 List<PatientRecord> history = patientRecordHistory.get(patientId).get(recordType);
 
-                // Limit history size
+                // Limit history size to last 100 records
                 if (history.size() > 100) {
                     history = history.subList(history.size() - 100, history.size());
                 }
 
-                // Add new records if not already present
+                // Add new records if not already present (by timestamp)
                 for (PatientRecord record : records) {
                     boolean exists = history.stream().anyMatch(r -> r.getTimestamp() == record.getTimestamp());
                     if (!exists) {
@@ -129,7 +132,7 @@ public class AlertGenerator {
     }
 
     /**
-     * Checks for blood pressure related alerts.
+     * Checks for blood pressure related alerts (high/low/trend).
      *
      * @param patientId the ID of the patient to check
      */
@@ -145,16 +148,16 @@ public class AlertGenerator {
             PatientRecord latestSystolic = systolicRecords.get(systolicRecords.size() - 1);
             double systolicValue = latestSystolic.getMeasurementValue();
             long timestamp = latestSystolic.getTimestamp();
-
+            // High systolic BP alert check (uses factory)
             if (systolicValue >= HIGH_SYSTOLIC_BP_THRESHOLD) {
-                triggerAlert(new Alert(
-                    patientId, AlertType.HIGH_SYSTOLIC_BP,
-                    "Critical high systolic blood pressure: " + systolicValue + " mmHg",
-                    timestamp, AlertSeverity.CRITICAL));
+                AlertFactory factory = AlertFactory.getFactory("bloodpressure");
+                Alert alert = factory.createAlert(patientId, "high_systolic", timestamp, systolicValue);
+                triggerAlert(alert);
             } else {
                 resolveAlert(patientId, AlertType.HIGH_SYSTOLIC_BP);
             }
 
+            // Low systolic BP alert
             if (systolicValue <= LOW_SYSTOLIC_BP_THRESHOLD) {
                 triggerAlert(new Alert(
                     patientId, AlertType.LOW_SYSTOLIC_BP,
@@ -164,6 +167,7 @@ public class AlertGenerator {
                 resolveAlert(patientId, AlertType.LOW_SYSTOLIC_BP);
             }
 
+            // Check for systolic BP trend if enough readings
             if (systolicRecords.size() >= BP_TREND_CONSECUTIVE_READINGS) {
                 checkBPTrend(patientId, systolicRecords, "systolic");
             }
@@ -175,6 +179,7 @@ public class AlertGenerator {
             double diastolicValue = latestDiastolic.getMeasurementValue();
             long timestamp = latestDiastolic.getTimestamp();
 
+            // High diastolic BP alert
             if (diastolicValue >= HIGH_DIASTOLIC_BP_THRESHOLD) {
                 triggerAlert(new Alert(
                     patientId, AlertType.HIGH_DIASTOLIC_BP,
@@ -184,6 +189,7 @@ public class AlertGenerator {
                 resolveAlert(patientId, AlertType.HIGH_DIASTOLIC_BP);
             }
 
+            // Low diastolic BP alert
             if (diastolicValue <= LOW_DIASTOLIC_BP_THRESHOLD) {
                 triggerAlert(new Alert(
                     patientId, AlertType.LOW_DIASTOLIC_BP,
@@ -193,6 +199,7 @@ public class AlertGenerator {
                 resolveAlert(patientId, AlertType.LOW_DIASTOLIC_BP);
             }
 
+            // Check for diastolic BP trend if enough readings
             if (diastolicRecords.size() >= BP_TREND_CONSECUTIVE_READINGS) {
                 checkBPTrend(patientId, diastolicRecords, "diastolic");
             }
@@ -200,7 +207,7 @@ public class AlertGenerator {
     }
 
     /**
-     * Checks for blood pressure trends (increasing or decreasing).
+     * Checks for blood pressure trends (increasing or decreasing) over recent readings.
      *
      * @param patientId the ID of the patient
      * @param records the BP records to check
@@ -213,6 +220,7 @@ public class AlertGenerator {
         boolean increasing = true;
         boolean decreasing = true;
 
+        // Check if all consecutive readings are increasing or decreasing by threshold
         for (int i = 1; i < recentReadings.size(); i++) {
             double current = recentReadings.get(i).getMeasurementValue();
             double previous = recentReadings.get(i - 1).getMeasurementValue();
@@ -242,7 +250,7 @@ public class AlertGenerator {
     }
 
     /**
-     * Checks for oxygen saturation related alerts.
+     * Checks for oxygen saturation related alerts (low or rapid drop).
      *
      * @param patientId the ID of the patient to check
      */
@@ -255,16 +263,16 @@ public class AlertGenerator {
             PatientRecord latestOxygen = oxygenRecords.get(oxygenRecords.size() - 1);
             double oxygenValue = latestOxygen.getMeasurementValue();
             long timestamp = latestOxygen.getTimestamp();
-
+            // Check for low oxygen saturation (uses factory)
             if (oxygenValue < LOW_OXYGEN_THRESHOLD) {
-                triggerAlert(new Alert(
-                    patientId, AlertType.LOW_OXYGEN_SATURATION,
-                    "Low oxygen saturation: " + oxygenValue + "%",
-                    timestamp, AlertSeverity.HIGH));
+                AlertFactory factory = AlertFactory.getFactory("bloodoxygen");
+                Alert alert = factory.createAlert(patientId, "low_saturation", timestamp, oxygenValue);
+                triggerAlert(alert);
             } else {
                 resolveAlert(patientId, AlertType.LOW_OXYGEN_SATURATION);
             }
 
+            // Check for rapid drop in oxygen saturation
             if (oxygenRecords.size() >= 2) {
                 checkOxygenRapidDrop(patientId, oxygenRecords);
             }
@@ -272,7 +280,7 @@ public class AlertGenerator {
     }
 
     /**
-     * Checks for rapid drops in oxygen saturation.
+     * Checks for rapid drops in oxygen saturation within a time window.
      *
      * @param patientId the ID of the patient
      * @param records the oxygen saturation records to check
@@ -282,6 +290,7 @@ public class AlertGenerator {
         double latestValue = latest.getMeasurementValue();
         long latestTime = latest.getTimestamp();
 
+        // Look back for a drop >= threshold within the time window
         for (int i = records.size() - 2; i >= 0; i--) {
             PatientRecord earlier = records.get(i);
             long earlierTime = earlier.getTimestamp();
@@ -300,7 +309,7 @@ public class AlertGenerator {
     }
 
     /**
-     * Checks for combined alerts such as Hypotensive Hypoxemia.
+     * Checks for combined alerts such as Hypotensive Hypoxemia (low BP and low O2).
      *
      * @param patientId the ID of the patient to check
      */
@@ -320,6 +329,7 @@ public class AlertGenerator {
             double systolicValue = latestSystolic.getMeasurementValue();
             double oxygenValue = latestOxygen.getMeasurementValue();
 
+            // Trigger combined alert if both BP and O2 are low
             if (systolicValue < LOW_SYSTOLIC_BP_THRESHOLD && oxygenValue < LOW_OXYGEN_THRESHOLD) {
                 triggerAlert(new Alert(
                     patientId, AlertType.HYPOTENSIVE_HYPOXEMIA,
@@ -357,13 +367,13 @@ public class AlertGenerator {
 
             PatientRecord latest = window.get(window.size() - 1);
             double latestValue = latest.getMeasurementValue();
+            long latestTime = latest.getTimestamp();
 
+            // Check for abnormal peaks in ECG (uses factory)
             if (Math.abs(latestValue - mean) > ECG_ABNORMAL_THRESHOLD * stdDev) {
-                triggerAlert(new Alert(
-                    patientId, AlertType.ECG_ABNORMAL_PEAK,
-                    "Abnormal ECG peak detected: " + latestValue + " (exceeds " +
-                        ECG_ABNORMAL_THRESHOLD + " standard deviations from mean)",
-                    latest.getTimestamp(), AlertSeverity.HIGH));
+                AlertFactory factory = AlertFactory.getFactory("ecg");
+                Alert alert = factory.createAlert(patientId, "abnormal_peak", latestTime, latestValue);
+                triggerAlert(alert);
             } else {
                 resolveAlert(patientId, AlertType.ECG_ABNORMAL_PEAK);
             }
@@ -371,7 +381,7 @@ public class AlertGenerator {
     }
 
     /**
-     * Checks for manually triggered alerts.
+     * Checks for manually triggered alerts (from patient or staff).
      *
      * @param patientId the ID of the patient to check
      */
@@ -410,6 +420,7 @@ public class AlertGenerator {
             activeAlerts.put(patientId, patientAlerts);
         }
 
+        // Update existing alert or add new alert
         if (patientAlerts.containsKey(alertType)) {
             Alert existingAlert = patientAlerts.get(alertType);
             existingAlert.updateAlert(alert.getMessage(), alert.getTimestamp());

@@ -26,7 +26,7 @@ class FileDataReaderTest {
             bw.write("101,80.0,DiastolicBP,1000\n");
         }
 
-        DataStorage storage = new DataStorage();
+        DataStorage storage = DataStorage.getInstance();
         FileDataReader reader = new FileDataReader(tempDir.toString());
 
         // Act: Read the data from the file
@@ -40,7 +40,7 @@ class FileDataReaderTest {
     void testEmptyDirectory() throws IOException {
         // Arrange: Directory is empty, no files to read
         FileDataReader reader = new FileDataReader(tempDir.toString());
-        DataStorage storage = new DataStorage();
+        DataStorage storage = DataStorage.getInstance();
 
         // Act & Assert: Should not throw any exceptions
         reader.readData(storage);
@@ -54,7 +54,7 @@ class FileDataReaderTest {
             bw.write("not a valid line\n");
         }
 
-        DataStorage storage = new DataStorage();
+        DataStorage storage = DataStorage.getInstance();
         FileDataReader reader = new FileDataReader(tempDir.toString());
 
         // Act & Assert: Should skip bad lines and not throw
@@ -66,7 +66,7 @@ class FileDataReaderTest {
         // Arrange: Use a directory path that does not exist
         String nonExistentDir = "C:/this/does/not/exist";
         FileDataReader reader = new FileDataReader(nonExistentDir);
-        DataStorage storage = new DataStorage();
+        DataStorage storage = DataStorage.getInstance();
 
         // Act & Assert: Should throw IOException due to missing directory
         Exception exception = assertThrows(IOException.class, () -> {

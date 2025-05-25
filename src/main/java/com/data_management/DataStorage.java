@@ -11,17 +11,34 @@ import com.alerts.AlertGenerator;
  * system.
  * This class serves as a repository for all patient records, organized by
  * patient IDs.
+ * This class is a singleton, hence ensured that only one instance exists globally.
  */
 public class DataStorage {
     private Map<Integer, Patient> patientMap; // Stores patient objects indexed by their unique patient ID.
+    
+    // The instance of DataStorage for the Singleton pattern.
+    private static DataStorage instance;
 
-    /**
-     * Constructs a new instance of DataStorage, initializing the underlying storage
-     * structure.
+      /**
+     * Returns the instance of the singleton DataStorage.
+     *
+     * @return DataStorage singleton instance
      */
-    public DataStorage() {
+    public static synchronized DataStorage getInstance() {
+        if (instance == null) {
+            instance = new DataStorage();
+        }
+        return instance;
+    }
+  
+    /**
+     * DataStorage constructor is private to prevent instantiation outside this class.
+     */
+    private DataStorage() {
         this.patientMap = new HashMap<>();
     }
+    
+
 
     /**
      * Adds or updates patient data in the storage.
@@ -75,6 +92,21 @@ public class DataStorage {
         return new ArrayList<>(patientMap.values());
     }
 
+    
+    /**
+     * This method clears all patient data, hence resetting the storage.
+     */
+    public void reset() {
+        patientMap.clear();
+    }
+
+    /**
+     * Similar functionality to reset, however mostly utilized in tests instead.
+     */
+    public void clearAllData() {
+        patientMap.clear();
+    }
+    
     /**
      * The main method for the DataStorage class.
      * Initializes the system, reads data into storage, and continuously monitors
@@ -83,13 +115,8 @@ public class DataStorage {
      * @param args command line arguments
      */
     public static void main(String[] args) {
-        // DataReader is not defined in this scope, should be initialized appropriately.
-        // DataReader reader = new SomeDataReaderImplementation("path/to/data");
-        DataStorage storage = new DataStorage();
-
-        // Assuming the reader has been properly initialized and can read data into the
-        // storage
-        // reader.readData(storage);
+        // Get the singleton instance
+        DataStorage storage = DataStorage.getInstance();
 
         // Example of using DataStorage to retrieve and print records for a patient
         List<PatientRecord> records = storage.getRecords(1, 1700000000000L, 1800000000000L);

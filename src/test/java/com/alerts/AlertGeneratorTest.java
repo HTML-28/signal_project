@@ -23,32 +23,50 @@ public class AlertGeneratorTest {
 
     @BeforeEach
     void init() {
-        dataStorage = new DataStorage();
+        dataStorage = DataStorage.getInstance();
         alertGenerator = new AlertGenerator(dataStorage);
         patient = new Patient(PATIENT_ID);
     }
 
     // --- Helper Methods ---
 
-    /** Adds a record to the patient and evaluates data. */
+    /**
+     * Adds a record to the patient and evaluates data.
+     * @param value the measurement value
+     * @param type the type of measurement (e.g., "SystolicBP")
+     * @return list of active alerts for the patient
+     */
     private List<Alert> addAndEval(double value, String type) {
         patient.addRecord(value, type, System.currentTimeMillis());
         alertGenerator.evaluateData(patient);
         return alertGenerator.getActiveAlertsForPatient(PATIENT_ID);
     }
 
-    /** Returns true if an alert of the given type exists in the list. */
+    /**
+     * Checks if an alert of the given type exists in the list.
+     * @param alerts list of alerts
+     * @param type alert type to check
+     * @return true if alert of the given type exists
+     */
     private boolean containsAlert(List<Alert> alerts, AlertType type) {
         return alerts.stream().anyMatch(a -> a.getType() == type);
     }
 
-    /** Returns the first alert of the given type, or null. */
+    /**
+     * Returns the first alert of the given type, or null if not found.
+     * @param alerts list of alerts
+     * @param type alert type to find
+     * @return the alert or null
+     */
     private Alert getAlert(List<Alert> alerts, AlertType type) {
         return alerts.stream().filter(a -> a.getType() == type).findFirst().orElse(null);
     }
 
     // --- Test Cases ---
 
+    /**
+     * Test: High systolic BP should trigger a CRITICAL alert.
+     */
     @Test
     @DisplayName("High systolic BP triggers CRITICAL alert")
     void highSystolicBP() {
@@ -58,6 +76,9 @@ public class AlertGeneratorTest {
         assertEquals(AlertSeverity.CRITICAL, alert.getSeverity());
     }
 
+    /**
+     * Test: Low systolic BP should trigger a HIGH alert.
+     */
     @Test
     @DisplayName("Low systolic BP triggers HIGH alert")
     void lowSystolicBP() {
@@ -67,6 +88,9 @@ public class AlertGeneratorTest {
         assertEquals(AlertSeverity.HIGH, alert.getSeverity());
     }
 
+    /**
+     * Test: High diastolic BP should trigger an alert.
+     */
     @Test
     @DisplayName("High diastolic BP triggers alert")
     void highDiastolicBP() {
@@ -74,6 +98,9 @@ public class AlertGeneratorTest {
         assertTrue(containsAlert(alerts, AlertType.HIGH_DIASTOLIC_BP));
     }
 
+    /**
+     * Test: Low diastolic BP should trigger an alert.
+     */
     @Test
     @DisplayName("Low diastolic BP triggers alert")
     void lowDiastolicBP() {
@@ -81,6 +108,9 @@ public class AlertGeneratorTest {
         assertTrue(containsAlert(alerts, AlertType.LOW_DIASTOLIC_BP));
     }
 
+    /**
+     * Test: Increasing BP trend should trigger a trend alert.
+     */
     @Test
     @DisplayName("Increasing BP trend triggers trend alert")
     void increasingBPTrend() {
@@ -93,6 +123,9 @@ public class AlertGeneratorTest {
         assertTrue(containsAlert(alerts, AlertType.BP_INCREASING_TREND));
     }
 
+    /**
+     * Test: Decreasing BP trend should trigger a trend alert.
+     */
     @Test
     @DisplayName("Decreasing BP trend triggers trend alert")
     void decreasingBPTrend() {
@@ -105,6 +138,9 @@ public class AlertGeneratorTest {
         assertTrue(containsAlert(alerts, AlertType.BP_DECREASING_TREND));
     }
 
+    /**
+     * Test: Normal BP should not trigger any BP alerts.
+     */
     @Test
     @DisplayName("Normal BP does not trigger alerts")
     void normalBP() {
@@ -113,6 +149,9 @@ public class AlertGeneratorTest {
         assertFalse(containsAlert(alerts, AlertType.LOW_SYSTOLIC_BP));
     }
 
+    /**
+     * Test: Low oxygen saturation should trigger a HIGH alert.
+     */
     @Test
     @DisplayName("Low oxygen saturation triggers HIGH alert")
     void lowOxygen() {
@@ -122,6 +161,9 @@ public class AlertGeneratorTest {
         assertEquals(AlertSeverity.HIGH, alert.getSeverity());
     }
 
+    /**
+     * Test: Rapid oxygen drop should trigger an alert.
+     */
     @Test
     @DisplayName("Rapid oxygen drop triggers alert")
     void rapidOxygenDrop() {
@@ -133,6 +175,9 @@ public class AlertGeneratorTest {
         assertTrue(containsAlert(alerts, AlertType.RAPID_OXYGEN_DROP));
     }
 
+    /**
+     * Test: Combined hypotensive hypoxemia should trigger a CRITICAL alert.
+     */
     @Test
     @DisplayName("Combined hypotensive hypoxemia triggers CRITICAL alert")
     void hypotensiveHypoxemia() {
@@ -146,6 +191,9 @@ public class AlertGeneratorTest {
         assertEquals(AlertSeverity.CRITICAL, alert.getSeverity());
     }
 
+    /**
+     * Test: Abnormal ECG peak should trigger an alert.
+     */
     @Test
     @DisplayName("ECG abnormal peak triggers alert")
     void ecgAbnormalPeak() {
@@ -159,6 +207,9 @@ public class AlertGeneratorTest {
         assertTrue(containsAlert(alerts, AlertType.ECG_ABNORMAL_PEAK));
     }
 
+    /**
+     * Test: Manual trigger alert should be detected.
+     */
     @Test
     @DisplayName("Manual trigger alert is detected")
     void manualTrigger() {
@@ -168,6 +219,9 @@ public class AlertGeneratorTest {
         assertTrue(containsAlert(alerts, AlertType.MANUAL_TRIGGER));
     }
 
+    /**
+     * Test: Alert should be resolved when condition normalizes.
+     */
     @Test
     @DisplayName("Alert is resolved when condition normalizes")
     void alertResolution() {
@@ -181,6 +235,9 @@ public class AlertGeneratorTest {
         assertFalse(containsAlert(alertGenerator.getActiveAlertsForPatient(PATIENT_ID), AlertType.HIGH_SYSTOLIC_BP));
     }
 
+    /**
+     * Test: Get all active alerts for multiple patients.
+     */
     @Test
     @DisplayName("Get all active alerts for multiple patients")
     void getAllActiveAlerts() {
